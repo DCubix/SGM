@@ -1,0 +1,27 @@
+;;; SGM Assembly Test
+;;; Calculates the Factorial of a number
+.data
+	param:	.byte	5
+	text:	.ascii	"Hello World!"
+
+.text
+	start:
+		call	print
+		ldi		$0, param
+		mov		$1, $0
+
+	loop:
+		out		$1
+		cmpi	$0, 1
+		jle		end
+		subi	$0, 1
+		mul		$1, $0
+		jmp		loop
+
+	end:
+		sys		0x1
+
+	print:
+		ldi		$F, &text
+		sys		0x5
+		ret

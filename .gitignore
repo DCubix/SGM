@@ -1,0 +1,7 @@
+*.cbp
+*.sb
+*.user
+*.cmake
+Makefile
+/[Bb]uild
+
