@@ -55,6 +55,11 @@ SGM_DEF_INSTR(stm) { // stm src, mem (store register value into memory)
 	cpu->ram[fmt.imm] = cpu->registers[fmt.dst];
 }
 
+SGM_DEF_INSTR(ldp) { // ldp ptr, src (load register value into pointer to memory)
+	sgmRFMT fmt = cpu_fetchR(cpu);
+	cpu->ram[cpu->registers[fmt.dst]] = cpu->registers[fmt.src];
+}
+
 SGM_DEF_INSTR(mov) { // mov dest, src (move/copy a value from a register to another)
 	sgmRFMT fmt = cpu_fetchR(cpu);
 	cpu->registers[fmt.dst] = cpu->registers[fmt.src];
@@ -71,33 +76,27 @@ SGM_DEF_INSTR(mov) { // mov dest, src (move/copy a value from a register to anot
 		cpu->registers[fmt.dst] op##= fmt.imm; \
 	}
 
-SGM_DEF_INSTR(sub) {
-	sgmRFMT fmt = cpu_fetchR(cpu);
-	cpu->registers[fmt.dst] -= cpu->registers[fmt.src];
-}
-SGM_DEF_INSTR(subi) {
-	sgmIFMT fmt = cpu_fetchI(cpu);
-	cpu->registers[fmt.dst]-= fmt.imm;
-}
-
-SGM_DEF_INSTR(mul) {
-	sgmRFMT fmt = cpu_fetchR(cpu);
-	cpu->registers[fmt.dst] *= cpu->registers[fmt.src];
-}
-SGM_DEF_INSTR(muli) {
-	sgmIFMT fmt = cpu_fetchI(cpu);
-	cpu->registers[fmt.dst]*= fmt.imm;
-}
-
 SGM_DEF_BINOP(add, +)
-//SGM_DEF_BINOP(sub, -)
-//SGM_DEF_BINOP(mul, *)
+SGM_DEF_BINOP(sub, -)
+SGM_DEF_BINOP(mul, *)
 SGM_DEF_BINOP(div, /)
 SGM_DEF_BINOP(and, &)
 SGM_DEF_BINOP(or, |)
 SGM_DEF_BINOP(xor, ^)
 SGM_DEF_BINOP(lsh, <<)
 SGM_DEF_BINOP(rsh, >>)
+
+SGM_DEF_INSTR(mod) {
+	sgmRFMT fmt = cpu_fetchR(cpu);
+	sgmWord d = cpu->registers[fmt.dst];
+	cpu->registers[fmt.dst] = d % cpu->registers[fmt.src];
+}
+
+SGM_DEF_INSTR(modi) {
+	sgmIFMT fmt = cpu_fetchI(cpu);
+	sgmWord d = cpu->registers[fmt.dst];
+	cpu->registers[fmt.dst] = d % fmt.imm;
+}
 
 /// Control flow
 SGM_DEF_INSTR(cmp) {
@@ -157,12 +156,33 @@ SGM_DEF_INSTR(ret) {
 	cpu->pc = cpu->stack[--cpu->sp];
 }
 
+SGM_DEF_INSTR(spri) { // spri pos sprite (Draws an 8x8 sprite, pos already assumes screen data offset)
+	sgmIFMT fmt = cpu_fetchI(cpu);
+	sgmWord addr = cpu->registers[fmt.dst];
+	sgmWord sx = (addr % SGM_VIDEO_WIDTH);
+	sgmWord sy = (addr / SGM_VIDEO_WIDTH);
+	for (sgmWord y = 0; y < 8; y++) {
+		for (sgmWord x = 0; x < 8; x++) {
+			sgmWord tx = x + sx;
+			sgmWord ty = y + sy;
+
+			if (tx < 0 || tx >= SGM_VIDEO_WIDTH || ty < 0 || ty >= SGM_VIDEO_HEIGHT)
+				continue;
+
+			sgmWord sidx = (x + y * 8);
+			sgmWord tidx = (tx + ty * SGM_VIDEO_WIDTH) + SGM_LOC_VIDEO;
+			cpu->ram[tidx] = cpu->ram[sidx + fmt.imm];
+		}
+	}
+}
+
 static const sgmInstruction SGM_INSTRUCTIONS[] = {
 	//// General purpose instructions
 	{ "sys",			 sgm_instr_sys },
 	{ "ldi",			 sgm_instr_ldi },
 	{ "ldm",			 sgm_instr_ldm },
 	{ "stm",			 sgm_instr_stm },
+	{ "ldp",			 sgm_instr_ldp },
 	{ "mov",			 sgm_instr_mov },
 	//// Math instructions
 	{ "add",			 sgm_instr_add },
@@ -183,6 +203,7 @@ static const sgmInstruction SGM_INSTRUCTIONS[] = {
 	{ "lshi",			 sgm_instr_lshi },
 	{ "rsh",			 sgm_instr_rsh },
 	{ "rshi",			 sgm_instr_rshi },
+	{ "mod",			 sgm_instr_mod },
 	//// Control flow
 	{ "cmp",			 sgm_instr_cmp },
 	{ "cmpi",			 sgm_instr_cmpi },
@@ -197,6 +218,7 @@ static const sgmInstruction SGM_INSTRUCTIONS[] = {
 	{ "ret",			 sgm_instr_ret },
 	//// Other
 	{ "out",			 sgm_instr_out },
+	{ "spri",			 sgm_instr_spri },
 	{ "", NULL }
 };
 
@@ -207,15 +229,45 @@ sgmCPU* sgm_cpu_new() {
 	memset(cpu->ram, 0, sizeof(sgmByte) * SGM_RAM_SIZE);
 	cpu->pc = cpu->sp = 0;
 	cpu->flag = 0;
+	cpu->flip = false;
+	cpu->stop = false;
 	return cpu;
 }
 
 void sgm_cpu_free(sgmCPU* cpu) {}
 
-void sgm_cpu_tick(sgmCPU* cpu) {
+void sgm_cpu_tick_base(sgmCPU* cpu) {
 	sgmByte opcode = sgm_cpu_next_byte(cpu);
 //	printf("EXEC. INSTR: %s\n", SGM_INSTRUCTIONS[opcode].name);
 	SGM_INSTRUCTIONS[opcode].exec(cpu);
+}
+
+void sgm_cpu_tick(sgmCPU* cpu) {
+	sgm_cpu_tick_base(cpu);
+
+	if (cpu->ram[SGM_LOC_SYSCALL] == SGM_SYSCALL_RESET) {
+		memset(cpu->registers, 0, sizeof(sgmWord) * RCount);
+		cpu->pc = cpu->sp = 0;
+		cpu->flag = 0;
+	}
+	if (cpu->ram[SGM_LOC_SYSCALL] == SGM_SYSCALL_PRINT) {
+		sgmWord param = cpu->registers[0xF];
+		char c = cpu->ram[param];
+		while (c != 0) {
+			printf("%c", c);
+			c = cpu->ram[++param];
+		}
+	}
+	if (cpu->ram[SGM_LOC_SYSCALL] == SGM_SYSCALL_VIDEO_CLEAR) {
+		memset(&cpu->ram[SGM_LOC_VIDEO], 0, sizeof(sgmByte) * SGM_VIDEO_SIZE);
+	}
+	if (cpu->ram[SGM_LOC_SYSCALL] == SGM_SYSCALL_FLIP) {
+		cpu->flip = true;
+	}
+	if (cpu->ram[SGM_LOC_SYSCALL] == SGM_SYSCALL_STOP) {
+		cpu->stop = true;
+	}
+	cpu->ram[SGM_LOC_SYSCALL] = 0;
 }
 
 void sgm_cpu_load(sgmCPU* cpu, sgmByte* program, sgmWord n) {
@@ -227,27 +279,8 @@ void sgm_cpu_load(sgmCPU* cpu, sgmByte* program, sgmWord n) {
 }
 
 void sgm_cpu_run(sgmCPU* cpu) {
-	while (cpu->ram[SGM_LOC_SYSCALL] != SGM_SYSCALL_STOP) {
-		cpu->ram[SGM_LOC_SYSCALL] = 0;
+	while (!cpu->stop) {
 		sgm_cpu_tick(cpu);
-		if (cpu->ram[SGM_LOC_SYSCALL] == SGM_SYSCALL_RESET) {
-			memset(cpu->registers, 0, sizeof(sgmWord) * RCount);
-			cpu->pc = cpu->sp = 0;
-			cpu->flag = 0;
-		}
-		if (cpu->ram[SGM_LOC_SYSCALL] == SGM_SYSCALL_PRINT) {
-			sgmWord param = cpu->registers[0xF];
-			char c = cpu->ram[param];
-			while (c != 0) {
-				printf("%c", c);
-				c = cpu->ram[++param];
-			}
-		}
-//		printf("[ ");
-//		for (sgmInt i = 0; i < RCount; i++) {
-//			printf("%04xh, ", cpu->registers[i]);
-//		}
-//		printf("]\n");
 	}
 }
 

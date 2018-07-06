@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "sgm.h"
 #include "sgm_cpu.h"
 #include "sgm_compiler.h"
 
@@ -21,10 +22,7 @@ help:
 			printf("INVALID ARGUMENTS.\n");
 			goto help;
 		}
-		sgmCPU* cpu = sgm_cpu_new();
-		sgm_compiler_load(cpu, argv[2]);
-		sgm_cpu_run(cpu);
-		sgm_cpu_free(cpu);
+		sgm_run_file(argv[2]);
 	} else if (strcmp(argv[1], "-c") == 0) {
 		if (argc != 3) {
 			printf("INVALID ARGUMENTS.\n");
@@ -63,10 +61,7 @@ help:
 			fread(program, sizeof(sgmByte), sz, fp);
 			fclose(fp);
 
-			sgmCPU* cpu = sgm_cpu_new();
-			sgm_cpu_load(cpu, program, sz);
-			sgm_cpu_run(cpu);
-			sgm_cpu_free(cpu);
+			sgm_run(program, sz);
 		} else {
 			printf("FILE NOT FOUND.\n");
 		}

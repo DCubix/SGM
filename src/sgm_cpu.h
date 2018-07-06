@@ -17,7 +17,7 @@
 
 #define SGM_LOC_PROGRAM 0
 #define SGM_LOC_GENERAL_PURPOSE SGM_PROGRAM_MAX_SIZE
-#define SGM_LOC_VIDEO (SGM_PROGRAM_MAX_SIZE + SGM_GENERAL_PURPOSE_SIZE)
+#define SGM_LOC_VIDEO (SGM_LOC_GENERAL_PURPOSE + SGM_GENERAL_PURPOSE_SIZE)
 #define SGM_LOC_SYSCALL (SGM_LOC_VIDEO + SGM_VIDEO_SIZE)
 #define SGM_LOC_SYSCALL_PARAM (SGM_LOC_SYSCALL+1)
 #define SGM_LOC_SYSCALL_PARAM_H (SGM_LOC_SYSCALL_PARAM+1)
@@ -27,6 +27,7 @@
 #define SGM_SYSCALL_VIDEO_CLEAR		0x3
 #define SGM_SYSCALL_DRAW_SPRITE		0x4
 #define SGM_SYSCALL_PRINT			0x5
+#define SGM_SYSCALL_FLIP			0x6
 
 #define SGM_FLAG_EQUAL		0x1
 #define SGM_FLAG_GREATER	0x2
@@ -104,6 +105,8 @@ typedef struct sgm_cpu_t {
 
 	sgmWord pc, sp;
 	sgmByte flag;
+
+	bool flip, stop;
 } sgmCPU;
 
 typedef struct sgm_instruction_t {
@@ -116,6 +119,7 @@ void sgm_cpu_free(sgmCPU* cpu);
 
 void sgm_cpu_load(sgmCPU* cpu, sgmByte* program, sgmWord n);
 
+void sgm_cpu_tick_base(sgmCPU* cpu);
 void sgm_cpu_tick(sgmCPU* cpu);
 void sgm_cpu_run(sgmCPU* cpu);
 

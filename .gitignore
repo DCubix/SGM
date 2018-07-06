@@ -3,5 +3,5 @@
 *.user
 *.cmake
 Makefile
-/[Bb]uild
+[Bb]uild
 

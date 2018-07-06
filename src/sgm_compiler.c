@@ -252,21 +252,6 @@ static void sgm_compiler_parse(sgmCPU* cpu, const char* fileName) {
 	FILE* fp = fopen(fileName, "r");
 	if (!fp) return;
 
-	// Pre-Defined labels
-	sgm_compiler_add_label("_screen", sgmTokDataSection, dataOff);
-	cpu->ram[SGM_LOC_GENERAL_PURPOSE + dataOff++] = (SGM_LOC_VIDEO)			& 0xFF;
-	cpu->ram[SGM_LOC_GENERAL_PURPOSE + dataOff++] = (SGM_LOC_VIDEO >> 8)	& 0xFF;
-
-	sgm_compiler_add_label("_gp", sgmTokDataSection, dataOff);
-	cpu->ram[SGM_LOC_GENERAL_PURPOSE + dataOff++] = (SGM_LOC_GENERAL_PURPOSE)			& 0xFF;
-	cpu->ram[SGM_LOC_GENERAL_PURPOSE + dataOff++] = (SGM_LOC_GENERAL_PURPOSE >> 8)		& 0xFF;
-
-	sgm_compiler_add_label("_w", sgmTokDataSection, dataOff);
-	cpu->ram[SGM_LOC_GENERAL_PURPOSE + dataOff++] = (SGM_VIDEO_WIDTH)	& 0xFF;
-
-	sgm_compiler_add_label("_h", sgmTokDataSection, dataOff);
-	cpu->ram[SGM_LOC_GENERAL_PURPOSE + dataOff++] = (SGM_VIDEO_HEIGHT) & 0xFF;
-
 	// Pass 1: Variable and Labels
 	while (fgets(p, BUFSIZ, fp)) {
 		for (tok = strtok(p, delim); tok; tok = strtok(NULL, delim)) {

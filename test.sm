@@ -1,27 +1,86 @@
-;;; SGM Assembly Test
-;;; Calculates the Factorial of a number
 .data
-	param:	.byte	5
-	text:	.ascii	"Hello World!"
+	spr:	.byte	0, 0, 2, 2, 2, 2, 0, 0, 0, 2, 2, 2, 2, 2, 2, 0, 2, 2,12, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 2, 2, 2, 2, 2, 2, 1, 1, 0, 2, 2, 2, 2, 1, 1, 0, 0, 0, 2, 2, 1, 1, 0, 0
 
 .text
 	start:
-		call	print
-		ldi		$0, param
-		mov		$1, $0
-
+		ldi		$0, 0		;; X
+		ldi		$1, 0		;; Y
+		ldi		$2, 0		;; DX
+		ldi		$3, 0		;; DY
+		ldi		$4, 1		;; SPEED
+		jmp		loop
+		
 	loop:
-		out		$1
-		cmpi	$0, 1
-		jle		end
-		subi	$0, 1
-		mul		$1, $0
+		sys		0x3			;; CLEAR
+		
+		ldi		$5, 0
+		mov		$5, $1		;; SPRITE POSITION
+		muli	$5, 128
+		add		$5, $0
+		
+		spri	$5, &spr	;; DRAW SPRITE
+		
+		sys		0x6			;; FLIP SCREEN
+		
+		call	move_x		;; MOVE BALL X
+		cmpi	$0, 120
+		jge		swap_x
+		cmpi	$0, 0
+		jle		swap_x
+		
+		call	move_y		;; MOVE BALL Y
+		cmpi	$1, 88
+		jge		swap_y
+		cmpi	$1, 0
+		jle		swap_y
+		
+		jmp loop
+		
+	move_x:
+		cmpi	$2, 0
+		jeq		add_x
+		cmpi	$2, 1
+		jeq		sub_x
+		ret
+	
+	move_y:
+		cmpi	$3, 0
+		jeq		add_y
+		cmpi	$3, 1
+		jeq		sub_y
+		ret
+	
+	add_x:
+		add		$0, $4
+		jmp		return
+
+	add_y:
+		add		$1, $4
+		jmp		return
+
+	sub_x:
+		sub		$0, $4
+		jmp		return
+
+	sub_y:
+		sub		$1, $4
+		jmp		return
+
+	swap_x:
+		xori	$2, 1
 		jmp		loop
 
-	end:
-		sys		0x1
+	swap_y:
+		xori	$3, 1
+		jmp		loop
 
-	print:
-		ldi		$F, &text
-		sys		0x5
+	return:
 		ret
+
+	reset:
+		ldi		$0, 0
+		ldi		$1, 0
+		ldi		$2, 0
+		ldi		$3, 0
+		jmp		loop
+
